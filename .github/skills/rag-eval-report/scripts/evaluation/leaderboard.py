@@ -20,6 +20,15 @@ def write_results(results: dict, out_dir: Path) -> None:
                 [team, f"{data['final_score_pct']:.1f}", avg["correctness"], avg["retrieval"], avg["groundedness"], avg["citations"], avg["latency"]]
             )
 
+    with (out_dir / "leaderboard_by_category.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["team", "category", "correctness", "retrieval", "groundedness", "citations", "latency", "weighted_total"])
+        for team, data in sorted(results.items(), key=lambda kv: kv[1]["final_score_pct"], reverse=True):
+            for category, scores in sorted(data.get("by_category", {}).items()):
+                writer.writerow(
+                    [team, category, scores["correctness"], scores["retrieval"], scores["groundedness"], scores["citations"], scores["latency"], scores["weighted_total"]]
+                )
+
 
 def print_leaderboard(results: dict) -> None:
     ranked = sorted(results.items(), key=lambda kv: kv[1]["final_score_pct"], reverse=True)

@@ -35,6 +35,7 @@ suitable for emailing (inline styles, inline SVG bars, no JS/CSS/CDN).
 3. This writes a timestamped run under `evaluation/results/<run_id>/`:
    - `results.json` — full per-question, per-team scores
    - `leaderboard.csv` — summary table
+   - `leaderboard_by_category.csv` — per-team scores broken down by question category
    - `report.html` — self-contained HTML leaderboard report, ready to email
 4. To regenerate the HTML report from an existing run (no re-evaluation)
    see [scripts/evaluation/report.py](./scripts/evaluation/report.py):
@@ -46,7 +47,7 @@ suitable for emailing (inline styles, inline SVG bars, no JS/CSS/CDN).
 
 The HTML report ([scripts/evaluation/report.py](./scripts/evaluation/report.py)) includes:
 - Ranked leaderboard with medals and a score bar per team
-- Per-team metric breakdown (correctness, retrieval, groundedness, citations, latency)
+- Per-team metric breakdown (correctness, retrieval, groundedness, citations, latency), plus a per-category table for each team
 - Lowest-scoring answers across all teams (gold vs. candidate) for the post-battle discussion
 
 ## Scoring semantics (scripts/evaluation/scoring.py)

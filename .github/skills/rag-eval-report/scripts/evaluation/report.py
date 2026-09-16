@@ -67,11 +67,29 @@ def _leaderboard_table(results: dict) -> str:
 
 def _team_detail_section(team: str, data: dict) -> str:
     metric_rows = "".join(_metric_row(m, data["average"][m]) for m in _METRICS)
+    category_table = _category_table(data.get("by_category", {}))
     return (
         f'<div style="{_CARD_STYLE}">'
         f'<h3 style="margin:0 0 12px;">{_esc(team)} — {data["final_score_pct"]:.1f}%</h3>'
         f'<table style="{_TABLE_STYLE}"><tbody>{metric_rows}</tbody></table>'
+        f"{category_table}"
         f"</div>"
+    )
+
+
+def _category_table(by_category: dict) -> str:
+    if not by_category:
+        return ""
+    header_cells = "".join(f'<th style="{_TH_STYLE}">{_esc(m)}</th>' for m in _METRICS)
+    rows = []
+    for category, scores in sorted(by_category.items()):
+        cells = "".join(f'<td style="{_TD_STYLE}">{scores[m]:.2f}</td>' for m in _METRICS)
+        rows.append(f'<tr><td style="{_TD_STYLE}">{_esc(category)}</td>{cells}</tr>')
+    return (
+        f'<h4 style="margin:16px 0 8px;color:#555;font-size:13px;">By category</h4>'
+        f'<table style="{_TABLE_STYLE}"><thead><tr>'
+        f'<th style="{_TH_STYLE}">Category</th>{header_cells}'
+        f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
     )
 
 

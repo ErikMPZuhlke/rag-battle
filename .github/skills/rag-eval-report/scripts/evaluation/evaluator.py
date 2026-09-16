@@ -76,7 +76,22 @@ def run_evaluation(questions_path: str, teams_path: str) -> dict:
             key: sum(r["scores"][key] for r in per_question) / len(per_question)
             for key in ["correctness", "retrieval", "groundedness", "citations", "latency", "weighted_total"]
         }
-        all_results[team_name] = {"per_question": per_question, "average": team_avg, "final_score_pct": team_avg["weighted_total"] * 100}
+        by_category: dict[str, list[dict]] = {}
+        for r in per_question:
+            by_category.setdefault(r["category"] or "uncategorized", []).append(r)
+        category_avg = {
+            category: {
+                key: sum(r["scores"][key] for r in rows) / len(rows)
+                for key in ["correctness", "retrieval", "groundedness", "citations", "latency", "weighted_total"]
+            }
+            for category, rows in by_category.items()
+        }
+        all_results[team_name] = {
+            "per_question": per_question,
+            "average": team_avg,
+            "by_category": category_avg,
+            "final_score_pct": team_avg["weighted_total"] * 100,
+        }
 
     return all_results
 
