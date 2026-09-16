@@ -24,19 +24,13 @@
       }
     },
     {
-      "label": "Open API docs",
-      "type": "shell",
-      "command": "echo ${input:openSwaggerDocs}",
-      "problemMatcher": []
-    },
-    {
-      "label": "Ingest corpus",
-      "type": "shell",
-      "command": "python -m app.services.ingest",
-      "problemMatcher": []
-    },
-    {
       "label": "Run Streamlit UI",
+      "dependsOn": ["Start Streamlit UI server", "Open Streamlit UI"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Streamlit UI server",
       "type": "shell",
       "command": "streamlit run app/ui/streamlit_app.py",
       "isBackground": true,
@@ -50,6 +44,24 @@
           "endsPattern": "Local URL:"
         }
       }
+    },
+    {
+      "label": "Open Streamlit UI",
+      "type": "shell",
+      "command": "echo ${input:openStreamlitUI}",
+      "problemMatcher": []
+    },
+    {
+      "label": "Open API docs",
+      "type": "shell",
+      "command": "echo ${input:openSwaggerDocs}",
+      "problemMatcher": []
+    },
+    {
+      "label": "Ingest corpus",
+      "type": "shell",
+      "command": "python -m app.services.ingest",
+      "problemMatcher": []
     },
     {
       "label": "Run unit tests",
@@ -80,17 +92,7 @@
       "problemMatcher": []
     },
     {
-      "label": "Run tests",
-      "dependsOn": ["Run unit tests", "Run integration tests", "Run Streamlit UI tests"],
-      "dependsOrder": "sequence",
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Run all tests",
+      "label": "Run ALL tests",
       "dependsOn": ["Run unit tests", "Run integration tests", "Run Streamlit UI tests", "Run e2e tests"],
       "dependsOrder": "sequence",
       "group": "test",
@@ -103,6 +105,12 @@
       "type": "command",
       "command": "simpleBrowser.show",
       "args": "http://localhost:8000/docs"
+    },
+    {
+      "id": "openStreamlitUI",
+      "type": "command",
+      "command": "simpleBrowser.show",
+      "args": "http://localhost:8501"
     }
   ]
 }

@@ -30,7 +30,12 @@ Steps:
 4. Run the **"Run API"** task (or `uvicorn app.main:app --reload --port 8000`) — this
    also opens the Swagger UI at `/docs` in VS Code's integrated browser once the
    server is up.
-5. Test it — either through the Swagger UI, or:
+5. (Optional) Run the **"Run Streamlit UI"** task (or
+   `streamlit run app/ui/streamlit_app.py`) to launch a chat interface against
+   the API — this opens the app at `http://localhost:8501` in VS Code's
+   integrated browser once it's ready. It talks to the API via `API_BASE_URL`
+   (defaults to `http://localhost:8000`), so start the API first.
+6. Test it — either through the Swagger UI, the Streamlit chat UI, or:
 
    ```bash
    curl -s localhost:8000/ask -H "content-type: application/json" \
@@ -44,10 +49,14 @@ Available via **Terminal > Run Task...** (or `Tasks: Run Task` in the command pa
 | Task | Command | Purpose |
 | --- | --- | --- |
 | **Run API** | `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000` | Starts the API, then opens the Swagger UI (`/docs`) in the integrated browser once it's ready. |
+| **Run Streamlit UI** | `streamlit run app/ui/streamlit_app.py` | Starts the chat UI, then opens it (`:8501`) in the integrated browser once it's ready. Requires the API to be running. |
 | **Ingest corpus** | `python -m app.services.ingest` | (Re)builds the local Chroma vector index from `data/knowledge-base/`. |
 | **Run unit tests** | `pytest tests/unit -q` | Runs only the unit test suite (no running API required). |
 | **Run integration tests** | `pytest tests/integration -q` | Runs only the integration suite against the `/ask` API contract. |
-| **Run tests** | runs the two tasks above in sequence | Default test task (`Tasks: Run Test Task`) — the full suite. |
+| **Run Streamlit UI tests** | `pytest tests/streamlit -q` | Runs the Streamlit `AppTest` suite (fast, mocks the API call). |
+| **Run e2e tests** | `pytest tests/e2e -q` | Boots the real API + Streamlit UI and drives them with Playwright (requires `GROQ_API_KEY`, an ingested corpus, and `playwright install chromium`). |
+| **Run ALL tests** | runs all of the above test tasks in sequence | Full suite, including e2e. |
+
 
 ## API contract
 
