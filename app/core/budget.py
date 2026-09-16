@@ -5,7 +5,7 @@ trade-offs instead of brute-forcing quality with more tokens/calls.
 """
 import tiktoken
 
-from app.config import MAX_INPUT_TOKENS, MAX_LLM_CALLS, MAX_RETRIEVALS
+from app.core.config import settings
 
 _encoding = tiktoken.get_encoding("cl100k_base")
 
@@ -23,9 +23,9 @@ class Budget:
 
     def __init__(
         self,
-        max_llm_calls: int = MAX_LLM_CALLS,
-        max_retrievals: int = MAX_RETRIEVALS,
-        max_input_tokens: int = MAX_INPUT_TOKENS,
+        max_llm_calls: int = settings.max_llm_calls,
+        max_retrievals: int = settings.max_retrievals,
+        max_input_tokens: int = settings.max_input_tokens,
     ):
         self.max_llm_calls = max_llm_calls
         self.max_retrievals = max_retrievals

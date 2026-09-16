@@ -31,7 +31,7 @@
 
 ## Per-question budget
 
-Enforced by `app/budget.py` (`BudgetExceededError` → HTTP 429):
+Enforced by `app/core/budget.py` (`BudgetExceededError` → HTTP 429):
 
 - Max **3 LLM calls** per question
 - Max **10 retrieval operations** per question

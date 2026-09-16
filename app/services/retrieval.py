@@ -1,8 +1,8 @@
 """Baseline retrieval: plain vector similarity search over the Chroma index."""
 import chromadb
 
-from app.budget import Budget
-from app.config import CHROMA_COLLECTION, CHROMA_PERSIST_DIR, TOP_K
+from app.core.budget import Budget
+from app.core.config import settings
 
 _client = None
 _collection = None
@@ -11,12 +11,19 @@ _collection = None
 def get_collection():
     global _client, _collection
     if _collection is None:
-        _client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
-        _collection = _client.get_collection(CHROMA_COLLECTION)
+        _client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        _collection = _client.get_collection(settings.chroma_collection)
     return _collection
 
 
-def retrieve(question: str, budget: Budget, top_k: int = TOP_K) -> list[dict]:
+def reset_collection_cache() -> None:
+    """Drop the cached client/collection so the next call reopens the index."""
+    global _client, _collection
+    _client = None
+    _collection = None
+
+
+def retrieve(question: str, budget: Budget, top_k: int = settings.top_k) -> list[dict]:
     """Return the top-k most similar chunks for the question."""
     budget.use_retrieval(1)
     collection = get_collection()

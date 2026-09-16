@@ -9,7 +9,7 @@ from pathlib import Path
 
 import chromadb
 
-from app.config import CHROMA_COLLECTION, CHROMA_PERSIST_DIR, CHUNK_SIZE_CHARS, KNOWLEDGE_BASE_DIR
+from app.core.config import settings
 
 _HEADER_RE = re.compile(r"^#{1,6}\s+(.*)$")
 
@@ -42,14 +42,14 @@ def _chunk_text(text: str, chunk_size: int) -> list[tuple[str, str]]:
     return [(c, s) for c, s in chunks if c]
 
 
-def load_documents(kb_dir: str = KNOWLEDGE_BASE_DIR) -> list[dict]:
+def load_documents(kb_dir: str = settings.knowledge_base_dir) -> list[dict]:
     """Walk the knowledge base directory and return chunk records."""
     records = []
     base = Path(kb_dir)
     for path in sorted(base.rglob("*.md")):
         relative = path.relative_to(base).as_posix()
         text = path.read_text(encoding="utf-8")
-        for i, (chunk, section) in enumerate(_chunk_text(text, CHUNK_SIZE_CHARS)):
+        for i, (chunk, section) in enumerate(_chunk_text(text, settings.chunk_size_chars)):
             records.append(
                 {
                     "id": f"{relative}::{i}",
@@ -61,13 +61,13 @@ def load_documents(kb_dir: str = KNOWLEDGE_BASE_DIR) -> list[dict]:
     return records
 
 
-def build_index(kb_dir: str = KNOWLEDGE_BASE_DIR, persist_dir: str = CHROMA_PERSIST_DIR) -> int:
+def build_index(kb_dir: str = settings.knowledge_base_dir, persist_dir: str = settings.chroma_persist_dir) -> int:
     """Ingest the knowledge base into a persistent Chroma collection."""
     client = chromadb.PersistentClient(path=persist_dir)
-    client.delete_collection(CHROMA_COLLECTION) if CHROMA_COLLECTION in [
+    client.delete_collection(settings.chroma_collection) if settings.chroma_collection in [
         c.name for c in client.list_collections()
     ] else None
-    collection = client.create_collection(CHROMA_COLLECTION)
+    collection = client.create_collection(settings.chroma_collection)
 
     records = load_documents(kb_dir)
     if not records:
@@ -83,4 +83,4 @@ def build_index(kb_dir: str = KNOWLEDGE_BASE_DIR, persist_dir: str = CHROMA_PERS
 
 if __name__ == "__main__":
     count = build_index()
-    print(f"Ingested {count} chunks into Chroma collection '{CHROMA_COLLECTION}' at {CHROMA_PERSIST_DIR}")
+    print(f"Ingested {count} chunks into Chroma collection '{settings.chroma_collection}' at {settings.chroma_persist_dir}")

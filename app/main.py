@@ -1,34 +1,37 @@
-"""FastAPI app exposing the POST /ask contract."""
-from fastapi import FastAPI, HTTPException
+"""FastAPI application factory exposing the RAG API."""
+from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 
-from app.budget import Budget, BudgetExceededError
-from app.generation import generate_answer
-from app.models import AskRequest, AskResponse, Source
-from app.retrieval import retrieve
+from app.api import api_router
 
-app = FastAPI(title="Acme Cloud Knowledge Assistant")
+DESCRIPTION = (
+    "Acme Cloud internal knowledge assistant. Ask natural-language questions "
+    "against the knowledge base (`/ask`), inspect raw retrieval results "
+    "(`/retrieve`), or rebuild the vector index (`/ingest`)."
+)
+
+TAGS_METADATA = [
+    {"name": "ask", "description": "Retrieve context and generate a grounded answer."},
+    {"name": "retrieve", "description": "Vector search only — returns matching chunks without calling the LLM."},
+    {"name": "ingest", "description": "Rebuild the Chroma index from the knowledge base corpus."},
+    {"name": "health", "description": "Liveness probe."},
+]
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Acme Cloud Knowledge Assistant",
+        description=DESCRIPTION,
+        version="1.0.0",
+        openapi_tags=TAGS_METADATA,
+    )
+    app.include_router(api_router)
+
+    @app.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse(url="/docs")
+
+    return app
 
 
-@app.post("/ask", response_model=AskResponse)
-def ask(request: AskRequest):
-    budget = Budget()
-    try:
-        chunks = retrieve(request.question, budget)
-        answer = generate_answer(request.question, chunks, budget)
-    except BudgetExceededError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
-
-    seen_documents = set()
-    sources = []
-    for chunk in chunks:
-        if chunk["document"] in seen_documents:
-            continue
-        seen_documents.add(chunk["document"])
-        sources.append(Source(document=chunk["document"], section=chunk["section"]))
-
-    return AskResponse(answer=answer, sources=sources)
+app = create_app()

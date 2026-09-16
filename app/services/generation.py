@@ -1,15 +1,15 @@
 """Baseline generation: naive context-stuffing prompt + Groq chat completion."""
 from openai import OpenAI
 
-from app.budget import Budget
-from app.config import GROQ_API_KEY, GROQ_BASE_URL, GROQ_MODEL, NO_ANSWER_TEXT
+from app.core.budget import Budget
+from app.core.config import settings
 
 _client = None
 
 _SYSTEM_PROMPT = (
     "You are an internal knowledge assistant for Acme Cloud. Answer the "
     "question using ONLY the provided context. If the context does not "
-    f"contain the answer, respond exactly with: \"{NO_ANSWER_TEXT}\". "
+    f"contain the answer, respond exactly with: \"{settings.no_answer_text}\". "
     "Do not invent information. Be concise."
 )
 
@@ -17,7 +17,7 @@ _SYSTEM_PROMPT = (
 def get_client() -> OpenAI:
     global _client
     if _client is None:
-        _client = OpenAI(api_key=GROQ_API_KEY, base_url=GROQ_BASE_URL)
+        _client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
     return _client
 
 
@@ -36,7 +36,7 @@ def generate_answer(question: str, chunks: list[dict], budget: Budget) -> str:
     budget.use_llm_call(_SYSTEM_PROMPT + user_prompt)
 
     response = get_client().chat.completions.create(
-        model=GROQ_MODEL,
+        model=settings.groq_model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},

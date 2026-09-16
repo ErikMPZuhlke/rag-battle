@@ -3,22 +3,69 @@
   "tasks": [
     {
       "label": "Run API",
+      "dependsOn": ["Start API server", "Open API docs"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start API server",
       "type": "shell",
       "command": "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
       "isBackground": true,
+      "problemMatcher": {
+        "pattern": [
+          { "regexp": ".", "file": 1, "line": 1, "column": 1, "message": 1 }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Started server process|Will watch for changes",
+          "endsPattern": "Uvicorn running on|Application startup complete"
+        }
+      }
+    },
+    {
+      "label": "Open API docs",
+      "type": "shell",
+      "command": "echo ${input:openSwaggerDocs}",
       "problemMatcher": []
     },
     {
       "label": "Ingest corpus",
       "type": "shell",
-      "command": "python -m app.ingest",
+      "command": "python -m app.services.ingest",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run unit tests",
+      "type": "shell",
+      "command": "pytest tests/unit -q",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run integration tests",
+      "type": "shell",
+      "command": "pytest tests/integration -q",
+      "group": "test",
       "problemMatcher": []
     },
     {
       "label": "Run tests",
-      "type": "shell",
-      "command": "pytest -q",
+      "dependsOn": ["Run unit tests", "Run integration tests"],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
       "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "openSwaggerDocs",
+      "type": "command",
+      "command": "simpleBrowser.show",
+      "args": "http://localhost:8000/docs"
     }
   ]
 }
