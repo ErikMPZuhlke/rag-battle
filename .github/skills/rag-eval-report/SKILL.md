@@ -67,5 +67,18 @@ All 5 rule-mandated metrics are computed and weighted exactly as in
   section. `public_questions.json` uses the object form; `hidden_questions.json`
   may use either.
 
+## Local dev loop (participants)
+
+Teams can score their own running app against the public set without the
+full organizer chain, using the same scoring code and LLM judge:
+```bash
+cd .github/skills/rag-eval-report/scripts
+python -m evaluation.dev_eval --base-url http://localhost:8000
+```
+Or via the **Evaluate app (local)** VS Code task. Use `--save <path>` to
+snapshot a run and `--compare <path>` on a later run to see per-metric,
+per-category deltas after a change to `app/`. This only accepts the public
+question set — the hidden set stays organizer-only per the participant rules.
+
 It has no external dependencies (fonts, scripts, stylesheets) so it renders
 correctly when attached to or pasted into an email.
