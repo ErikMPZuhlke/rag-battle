@@ -36,6 +36,22 @@
       "problemMatcher": []
     },
     {
+      "label": "Run Streamlit UI",
+      "type": "shell",
+      "command": "streamlit run app/ui/streamlit_app.py",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": [
+          { "regexp": ".", "file": 1, "line": 1, "column": 1, "message": 1 }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "You can now view your Streamlit app",
+          "endsPattern": "Local URL:"
+        }
+      }
+    },
+    {
       "label": "Run unit tests",
       "type": "shell",
       "command": "pytest tests/unit -q",
@@ -50,13 +66,34 @@
       "problemMatcher": []
     },
     {
+      "label": "Run Streamlit UI tests",
+      "type": "shell",
+      "command": "pytest tests/streamlit -q",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run e2e tests",
+      "type": "shell",
+      "command": "pytest tests/e2e -q",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
       "label": "Run tests",
-      "dependsOn": ["Run unit tests", "Run integration tests"],
+      "dependsOn": ["Run unit tests", "Run integration tests", "Run Streamlit UI tests"],
       "dependsOrder": "sequence",
       "group": {
         "kind": "test",
         "isDefault": true
       },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run all tests",
+      "dependsOn": ["Run unit tests", "Run integration tests", "Run Streamlit UI tests", "Run e2e tests"],
+      "dependsOrder": "sequence",
+      "group": "test",
       "problemMatcher": []
     }
   ],
