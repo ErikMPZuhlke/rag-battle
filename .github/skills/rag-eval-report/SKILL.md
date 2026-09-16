@@ -49,5 +49,22 @@ The HTML report ([scripts/evaluation/report.py](./scripts/evaluation/report.py))
 - Per-team metric breakdown (correctness, retrieval, groundedness, citations, latency)
 - Lowest-scoring answers across all teams (gold vs. candidate) for the post-battle discussion
 
+## Scoring semantics (scripts/evaluation/scoring.py)
+
+All 5 rule-mandated metrics are computed and weighted exactly as in
+`docs/PARTICIPANT_RULES.md` (correctness 50%, retrieval 20%, groundedness
+15%, citations 10%, latency 5%). Retrieval and citations both grade against
+`gold_sources` but are intentionally distinct, not a duplicate check:
+
+- **Retrieval (20%)** is rank-aware (nDCG): rewards gold documents/sections
+  appearing early in `sources`.
+- **Citations (10%)** is precision-weighted (F-beta, beta=0.5): penalizes
+  citing extra, irrelevant documents rather than a clean, minimal list.
+- Both are **section-aware**: `gold_sources` entries may be a plain document
+  path (`"engineering/deployments.md"`) or `{"document": ..., "sections":
+  [...]}"` for partial credit when the right document is cited but the wrong
+  section. `public_questions.json` uses the object form; `hidden_questions.json`
+  may use either.
+
 It has no external dependencies (fonts, scripts, stylesheets) so it renders
 correctly when attached to or pasted into an email.

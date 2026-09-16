@@ -31,11 +31,11 @@ def call_team(base_url: str, question: str, timeout: float = 15.0) -> dict:
         latency = time.perf_counter() - start
         response.raise_for_status()
         body = response.json()
-        documents = [s["document"] for s in body.get("sources", [])]
-        return {"answer": body.get("answer", ""), "documents": documents, "latency": latency, "error": None}
+        sources = [{"document": s["document"], "section": s.get("section")} for s in body.get("sources", [])]
+        return {"answer": body.get("answer", ""), "sources": sources, "latency": latency, "error": None}
     except Exception as exc:  # noqa: BLE001 - a broken team submission must not crash the eval run
         latency = time.perf_counter() - start
-        return {"answer": "", "documents": [], "latency": latency, "error": str(exc)}
+        return {"answer": "", "sources": [], "latency": latency, "error": str(exc)}
 
 
 def run_evaluation(questions_path: str, teams_path: str) -> dict:
@@ -56,7 +56,7 @@ def run_evaluation(questions_path: str, teams_path: str) -> dict:
                     gold_answer=q["gold_answer"],
                     gold_sources=q["gold_sources"],
                     candidate_answer=call["answer"],
-                    returned_documents=call["documents"],
+                    returned_sources=call["sources"],
                     latency_seconds=call["latency"],
                 )
             per_question.append(
@@ -66,7 +66,7 @@ def run_evaluation(questions_path: str, teams_path: str) -> dict:
                     "question": q["question"],
                     "gold_answer": q["gold_answer"],
                     "candidate_answer": call["answer"],
-                    "returned_documents": call["documents"],
+                    "returned_documents": [s["document"] for s in call["sources"]],
                     "latency_seconds": call["latency"],
                     "error": call["error"],
                     "scores": scores,
