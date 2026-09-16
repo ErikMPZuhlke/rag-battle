@@ -12,7 +12,7 @@
   "portsAttributes": {
     "8000": { "label": "RAG API", "onAutoForward": "notify" }
   },
-  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && bash .devcontainer/setup-oh-my-posh.sh",
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && bash .devcontainer/setup-oh-my-posh.sh && bash .devcontainer/setup-git-mergetool.sh",
   "customizations": {
     "vscode": {
       "extensions": [
