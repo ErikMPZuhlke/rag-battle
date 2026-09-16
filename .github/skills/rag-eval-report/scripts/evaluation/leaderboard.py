@@ -7,9 +7,10 @@ from pathlib import Path
 _MEDALS = ["🥇", "🥈", "🥉"]
 
 
-def write_results(results: dict, out_dir: Path) -> None:
+def write_results(results: dict, out_dir: Path, meta: dict | None = None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    payload = {"meta": meta or {}, "teams": results}
+    (out_dir / "results.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     with (out_dir / "leaderboard.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)

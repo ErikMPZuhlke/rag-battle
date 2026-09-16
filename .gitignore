@@ -7,3 +7,7 @@ __pycache__/
 .venv/
 .github/skills/rag-eval-report/scripts/evaluation/results/*
 !.github/skills/rag-eval-report/scripts/evaluation/results/.gitkeep
+
+# Hidden question set plaintext + frozen-module build intermediates (organizer-only, never committed)
+.github/skills/rag-eval-report/scripts/evaluation/private/
+.github/skills/rag-eval-report/assets/_build/

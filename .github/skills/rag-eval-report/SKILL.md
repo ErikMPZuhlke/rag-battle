@@ -19,6 +19,11 @@ suitable for emailing (inline styles, inline SVG bars, no JS/CSS/CDN).
   [scripts/evaluation/judge.py](./scripts/evaluation/judge.py)).
 - [scripts/evaluation/teams.json](./scripts/evaluation/teams.json) lists every team name and
   its reachable `base_url`.
+- The hidden question set is never checked into the repo as plaintext. It's
+  compiled into a frozen, importable native module at
+  [assets/](./assets/) (`_hidden_frozen*.so`) — see
+  [scripts/evaluation/tools/build_hidden.py](./scripts/evaluation/tools/build_hidden.py)
+  and [scripts/evaluation/hidden.py](./scripts/evaluation/hidden.py).
 
 ## Procedure
 
@@ -26,22 +31,47 @@ suitable for emailing (inline styles, inline SVG bars, no JS/CSS/CDN).
    ```bash
    cd .github/skills/rag-eval-report/scripts
    ```
-2. Run the evaluator against the public (self-test) or hidden (organizer) set:
+2. Run the evaluator against the hidden (organizer, default) or public (self-test) set:
    ```bash
-   python -m evaluation.evaluator --questions evaluation/public_questions.json --teams evaluation/teams.json
-   # organizer-only:
-   python -m evaluation.evaluator --questions evaluation/hidden_questions.json --teams evaluation/teams.json
+   # organizer-only, default -- loads the frozen module, never a JSON file:
+   python -m evaluation.evaluator --questions hidden
+   # self-test:
+   python -m evaluation.evaluator --questions evaluation/public_questions.json
    ```
 3. This writes a timestamped run under `evaluation/results/<run_id>/`:
-   - `results.json` — full per-question, per-team scores
+   - `results.json` — `{"meta": {"run_id", "question_set": {"name","sha256","count"}}, "teams": {...}}`.
+     For hidden runs, `question` and `gold_answer` are redacted per-question
+     (scoring already happened before redaction, so scores are unaffected);
+     `question_set` is a tamper-evident fingerprint (sha256 + count), not the
+     question text, so you can verify which set produced a given leaderboard
+     without ever exposing it.
    - `leaderboard.csv` — summary table
    - `leaderboard_by_category.csv` — per-team scores broken down by question category
-   - `report.html` — self-contained HTML leaderboard report, ready to email
+   - `report.html` — self-contained HTML leaderboard report, ready to email; the
+     footer shows the same `question_set` fingerprint as `results.json`.
 4. To regenerate the HTML report from an existing run (no re-evaluation)
    see [scripts/evaluation/report.py](./scripts/evaluation/report.py):
    ```bash
    python -m evaluation.report --results evaluation/results/<run_id>/results.json
    ```
+
+## Verifying the hidden set that produced a leaderboard
+
+Every `results.json` and `report.html` carries `question_set` (name, sha256,
+count). To confirm a given leaderboard was produced by the current frozen
+hidden set:
+```bash
+cd .github/skills/rag-eval-report/scripts
+python -c "from evaluation.hidden import hidden_fingerprint; print(hidden_fingerprint())"
+```
+and compare against the `question_set` recorded in that run's `results.json`
+`meta`. `evaluation/hidden.py` also re-verifies the frozen module's embedded
+sha256 on every load, so a tampered or stale `.so` fails loudly instead of
+silently scoring against the wrong questions. See
+[scripts/evaluation/tests/test_frozen_hidden.py](./scripts/evaluation/tests/test_frozen_hidden.py)
+for the automated checks (tamper rejection, no-plaintext-in-repo, and that
+`--questions hidden` never falls back to reading a JSON file).
+
 
 ## Report contents
 

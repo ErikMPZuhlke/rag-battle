@@ -123,7 +123,7 @@ def render_html(results: dict, meta: dict | None = None) -> str:
     meta = meta or {}
     generated_at = meta.get("generated_at", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
     run_id = meta.get("run_id", "")
-    questions_path = meta.get("questions_path", "")
+    question_set = meta.get("question_set")
 
     detail_sections = "".join(_team_detail_section(team, data) for team, data in results.items())
 
@@ -134,13 +134,21 @@ def render_html(results: dict, meta: dict | None = None) -> str:
         f'<div style="{_CARD_STYLE}">'
         f'<h1 style="margin:0 0 4px;">\U0001F3C6 RAG Battle Royale — Leaderboard</h1>'
         f'<p style="margin:0;color:#666;font-size:13px;">Run {_esc(run_id)} &middot; generated {_esc(generated_at)}'
-        + (f" &middot; questions: {_esc(questions_path)}" if questions_path else "")
+        + (f" &middot; questions: {_esc(_format_question_set(question_set))}" if question_set else "")
         + "</p></div>"
         f'<div style="{_CARD_STYLE}"><h2 style="margin:0 0 12px;">Leaderboard</h2>{_leaderboard_table(results)}</div>'
         f"{detail_sections}"
         f"{_failure_analysis_section(results)}"
         "</body></html>"
     )
+
+
+def _format_question_set(question_set: dict) -> str:
+    """Renders a tamper-evident fingerprint (name, count, sha256 prefix) -- never the question text itself."""
+    name = question_set.get("name", "?")
+    count = question_set.get("count", "?")
+    sha = question_set.get("sha256", "")
+    return f"{name} ({count} questions, sha256 {sha[:12]}…)"
 
 
 def write_html_report(results: dict, out_dir: Path, meta: dict | None = None) -> Path:
@@ -150,6 +158,14 @@ def write_html_report(results: dict, out_dir: Path, meta: dict | None = None) ->
     return out_path
 
 
+def _load_results(path: Path) -> tuple[dict, dict]:
+    """Supports both the current {meta, teams} results.json and older flat per-team files."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if set(payload.keys()) >= {"meta", "teams"}:
+        return payload["teams"], payload["meta"]
+    return payload, {}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Render a results.json into a self-contained HTML report.")
     parser.add_argument("--results", required=True, help="Path to a results.json file")
@@ -157,9 +173,9 @@ def main():
     args = parser.parse_args()
 
     results_path = Path(args.results)
-    results = json.loads(results_path.read_text(encoding="utf-8"))
+    results, meta = _load_results(results_path)
     out_path = Path(args.out) if args.out else results_path.parent / "report.html"
-    out_path.write_text(render_html(results, {"run_id": results_path.parent.name}), encoding="utf-8")
+    out_path.write_text(render_html(results, {**meta, "run_id": meta.get("run_id", results_path.parent.name)}), encoding="utf-8")
     print(f"Wrote {out_path}")
 
 
