@@ -1,0 +1,187 @@
+{
+  "description": "ORGANIZER-ONLY. Do not share with participants before code freeze. Hidden evaluation set run after the battle ends.",
+  "questions": [
+    {
+      "id": "hid-01",
+      "category": "direct-lookup",
+      "question": "How many business days does an employee have to return company equipment after their last day?",
+      "gold_answer": "10 business days.",
+      "gold_sources": ["people/equipment.md"]
+    },
+    {
+      "id": "hid-02",
+      "category": "direct-lookup",
+      "question": "What is the remediation target for a Critical severity vulnerability?",
+      "gold_answer": "7 days.",
+      "gold_sources": ["security/vulnerability-management.md"]
+    },
+    {
+      "id": "hid-03",
+      "category": "direct-lookup",
+      "question": "What is the annual learning and development budget per employee?",
+      "gold_answer": "$1,500 per year.",
+      "gold_sources": ["people/expenses.md"]
+    },
+    {
+      "id": "hid-04",
+      "category": "direct-lookup",
+      "question": "What is the minimum required password length at Acme Cloud?",
+      "gold_answer": "12 characters.",
+      "gold_sources": ["security/authentication.md"]
+    },
+    {
+      "id": "hid-05",
+      "category": "direct-lookup",
+      "question": "How many consecutive failed login attempts trigger an account lockout?",
+      "gold_answer": "10 consecutive failed attempts, resulting in a 15-minute lockout.",
+      "gold_sources": ["security/authentication.md"]
+    },
+    {
+      "id": "hid-06",
+      "category": "direct-lookup",
+      "question": "What is the Recovery Time Objective (RTO) for a full regional failover?",
+      "gold_answer": "30 minutes.",
+      "gold_sources": ["operations/business-continuity.md"]
+    },
+    {
+      "id": "hid-07",
+      "category": "direct-lookup",
+      "question": "How often do database credentials in the secrets vault rotate automatically?",
+      "gold_answer": "Every 90 days.",
+      "gold_sources": ["security/secrets.md"]
+    },
+    {
+      "id": "hid-08",
+      "category": "direct-lookup",
+      "question": "How long does the free trial last for new customers?",
+      "gold_answer": "14 days.",
+      "gold_sources": ["product/trial-accounts.md"]
+    },
+    {
+      "id": "hid-09",
+      "category": "multi-document",
+      "question": "Can an engineer outside the Platform team deploy to production during a P1 incident?",
+      "gold_answer": "Yes, but only via emergency approval granted by the Incident Commander; the standard policy restricts approval to Platform team members, and the emergency approval must be reviewed retroactively by Platform within 24 hours.",
+      "gold_sources": ["security/incident-response.md", "engineering/deployments.md", "security/access-control.md"]
+    },
+    {
+      "id": "hid-10",
+      "category": "multi-document",
+      "question": "How does a new engineer get access to read production secrets?",
+      "gold_answer": "Not automatically during onboarding — they must submit a request via access-control.md's process (manager approval plus a security team lead's sign-off) to join the secrets-readers group.",
+      "gold_sources": ["people/onboarding.md", "security/access-control.md", "security/secrets.md"]
+    },
+    {
+      "id": "hid-11",
+      "category": "multi-document",
+      "question": "How much longer are security audit logs kept compared to general application logs?",
+      "gold_answer": "Security audit logs are retained for 1 year, versus 30 days hot / 90 days total for general application logs — audit logs are kept several months longer.",
+      "gold_sources": ["security/audit-logging.md", "engineering/observability.md"]
+    },
+    {
+      "id": "hid-12",
+      "category": "multi-document",
+      "question": "How many days do customers currently have to request a refund, and how does that compare to the old policy?",
+      "gold_answer": "Customers currently have 30 days (effective July 2025), up from the previous, now-deprecated 14-day window.",
+      "gold_sources": ["product/deprecation-policy.md", "product/refunds.md"]
+    },
+    {
+      "id": "hid-13",
+      "category": "multi-document",
+      "question": "Who becomes the Incident Commander, and what special authority does that role have during a P1?",
+      "gold_answer": "The on-call engineer who first acknowledges the page becomes the Incident Commander by default; the IC can grant emergency deployment approval to any engineer during a P1, regardless of team.",
+      "gold_sources": ["operations/on-call.md", "security/incident-response.md"]
+    },
+    {
+      "id": "hid-14",
+      "category": "multi-document",
+      "question": "If planned maintenance causes downtime, is that downtime counted against the uptime SLA?",
+      "gold_answer": "No, as long as customers were notified at least 72 hours in advance, per the change management process; such planned maintenance is excluded from the uptime calculation.",
+      "gold_sources": ["operations/sla.md", "operations/change-management.md"]
+    },
+    {
+      "id": "hid-15",
+      "category": "paraphrased",
+      "question": "Who's allowed to sign off on pushing code live to production?",
+      "gold_answer": "Only members of the Platform team (with the P1 incident emergency exception).",
+      "gold_sources": ["engineering/deployments.md", "security/access-control.md"]
+    },
+    {
+      "id": "hid-16",
+      "category": "paraphrased",
+      "question": "If I get locked out after too many wrong password attempts, how long until I can try again?",
+      "gold_answer": "15 minutes.",
+      "gold_sources": ["security/authentication.md"]
+    },
+    {
+      "id": "hid-17",
+      "category": "paraphrased",
+      "question": "What's the yearly cash amount Acme gives remote employees to set up their home workspace?",
+      "gold_answer": "$500 per year.",
+      "gold_sources": ["people/expenses.md"]
+    },
+    {
+      "id": "hid-18",
+      "category": "paraphrased",
+      "question": "How quickly does Acme need to react if a critical vulnerability is actively being exploited?",
+      "gold_answer": "It's treated as a P1 security incident, so the P1 targets apply: 15-minute acknowledgment and 4-hour resolution, overriding the normal 7-day critical remediation window.",
+      "gold_sources": ["security/vulnerability-management.md", "operations/sla.md"]
+    },
+    {
+      "id": "hid-19",
+      "category": "no-answer",
+      "question": "What programming language does the Finance team use?",
+      "gold_answer": "The documentation does not specify this.",
+      "gold_sources": []
+    },
+    {
+      "id": "hid-20",
+      "category": "no-answer",
+      "question": "Is there a maximum number of pets allowed in an Acme Cloud office?",
+      "gold_answer": "The documentation does not specify this.",
+      "gold_sources": []
+    },
+    {
+      "id": "hid-21",
+      "category": "no-answer",
+      "question": "Does Acme Cloud offer a native mobile app for the customer dashboard?",
+      "gold_answer": "The documentation does not specify this.",
+      "gold_sources": []
+    },
+    {
+      "id": "hid-22",
+      "category": "no-answer",
+      "question": "What color scheme is used on Acme Cloud's public marketing website?",
+      "gold_answer": "The documentation does not specify this.",
+      "gold_sources": []
+    },
+    {
+      "id": "hid-23",
+      "category": "adversarial",
+      "question": "Which teams are NOT allowed to approve production deployments?",
+      "gold_answer": "All teams other than Platform (e.g. Ingest, Query, Alerting, Billing) — approval is restricted to Platform team members except during a P1 emergency-approval exception.",
+      "gold_sources": ["security/access-control.md", "engineering/deployments.md"]
+    },
+    {
+      "id": "hid-24",
+      "category": "adversarial",
+      "question": "How many days do customers have to request a refund? (Careful — one document is outdated.)",
+      "gold_answer": "30 days. The 14-day figure in refunds.md is explicitly marked deprecated as of June 2025 and superseded by deprecation-policy.md.",
+      "gold_sources": ["product/deprecation-policy.md", "product/refunds.md"]
+    },
+    {
+      "id": "hid-25",
+      "category": "adversarial",
+      "question": "What is Acme Cloud's response time commitment for a Sev1 incident?",
+      "gold_answer": "Sev1 is the same as P1 at Acme Cloud, so the P1 targets apply: 15-minute acknowledgment, 4-hour resolution.",
+      "gold_sources": ["security/incident-response.md", "operations/sla.md"]
+    },
+    {
+      "id": "hid-26",
+      "category": "adversarial",
+      "question": "Does the Infrastructure team approve production deployments?",
+      "gold_answer": "There is no separate \"Infrastructure team\" at Acme Cloud — the Platform team owns shared infrastructure and is the only team authorized to approve production deployments.",
+      "gold_sources": ["engineering/architecture.md", "security/access-control.md"]
+    }
+  ]
+}

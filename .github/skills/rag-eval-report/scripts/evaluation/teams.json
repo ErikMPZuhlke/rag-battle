@@ -1,0 +1,6 @@
+{
+  "description": "Maps team name to the base URL the evaluator should call for /ask. Populate after each team's container/dev-container instance is running and reachable.",
+  "teams": [
+    { "team": "baseline", "base_url": "http://localhost:8000" }
+  ]
+}

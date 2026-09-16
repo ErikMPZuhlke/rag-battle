@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+.chroma/
+.pytest_cache/
+*.egg-info/
+.venv/
+.github/skills/rag-eval-report/scripts/evaluation/results/*
+!.github/skills/rag-eval-report/scripts/evaluation/results/.gitkeep

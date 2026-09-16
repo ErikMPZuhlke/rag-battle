@@ -1,0 +1,33 @@
+# Organizer-only. Used to run every team's submitted repo copy simultaneously
+# for the hidden evaluation, each on its own port. NOT used by teams during
+# development — teams work inside the Dev Container instead (see .devcontainer/).
+#
+# Usage: copy each team's submission into teams/<team-name>/ (a full copy of
+# this repo with their changes), add one service block per team below (or
+# generate this file with a small script), then:
+#
+#   docker compose -f docker-compose.eval.yml up --build -d
+#
+# Update .github/skills/rag-eval-report/scripts/evaluation/teams.json with each team's
+# mapped host port before running the rag-eval-report skill's evaluator.
+
+services:
+  team-baseline:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - TEAM_NAME=baseline
+
+  # team-example:
+  #   build:
+  #     context: ./teams/team-example
+  #   ports:
+  #     - "8001:8000"
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - TEAM_NAME=team-example

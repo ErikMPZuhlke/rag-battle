@@ -1,0 +1,75 @@
+{
+  "description": "Public training questions for teams to test and improve their RAG system. These mirror the style of the hidden evaluation set but are not scored directly.",
+  "questions": [
+    {
+      "id": "pub-01",
+      "category": "easy",
+      "question": "What is the production deployment approval policy?",
+      "gold_answer": "Production deployments must be approved by a member of the Platform team; this is enforced as a hard control in the CI/CD pipeline.",
+      "gold_sources": ["engineering/deployments.md", "security/access-control.md"]
+    },
+    {
+      "id": "pub-02",
+      "category": "medium",
+      "question": "How long are production logs retained?",
+      "gold_answer": "General application logs are retained 30 days in the hot tier and an additional 60 days in cold storage (90 days total). This is separate from security audit logs, which are retained for 1 year.",
+      "gold_sources": ["engineering/observability.md", "security/audit-logging.md"]
+    },
+    {
+      "id": "pub-03",
+      "category": "medium",
+      "question": "What is the SLA for P1 incidents?",
+      "gold_answer": "P1 incidents have a 15-minute acknowledgment target and a 4-hour resolution target, with a 99.9% uptime commitment for Enterprise customers.",
+      "gold_sources": ["operations/sla.md"]
+    },
+    {
+      "id": "pub-04",
+      "category": "hard",
+      "question": "Can a non-Platform engineer deploy to production during a P1 incident?",
+      "gold_answer": "Yes. During an active P1 incident, the Incident Commander may grant emergency deployment approval to any engineer regardless of team, though it must be retroactively reviewed by the Platform team within 24 hours.",
+      "gold_sources": ["security/incident-response.md", "engineering/deployments.md", "security/access-control.md"]
+    },
+    {
+      "id": "pub-05",
+      "category": "no-answer",
+      "question": "What programming language does the Finance team use?",
+      "gold_answer": "The documentation does not specify this.",
+      "gold_sources": []
+    },
+    {
+      "id": "pub-06",
+      "category": "easy",
+      "question": "How much is the home office stipend for remote employees?",
+      "gold_answer": "$500 per year, requiring manager approval and reimbursed via the expense portal within 30 days.",
+      "gold_sources": ["people/expenses.md"]
+    },
+    {
+      "id": "pub-07",
+      "category": "medium",
+      "question": "How many days do customers have to request a refund?",
+      "gold_answer": "30 days, as of the July 2025 policy update. The previous 14-day window is deprecated and no longer applies.",
+      "gold_sources": ["product/deprecation-policy.md", "product/refunds.md"]
+    },
+    {
+      "id": "pub-08",
+      "category": "medium",
+      "question": "Who can approve someone joining the secrets-readers group?",
+      "gold_answer": "Requests require manager approval plus sign-off from a security team lead.",
+      "gold_sources": ["security/access-control.md", "security/secrets.md"]
+    },
+    {
+      "id": "pub-09",
+      "category": "easy",
+      "question": "What uptime commitment does Acme Cloud make to Enterprise customers?",
+      "gold_answer": "99.9% monthly uptime, with service credits available if missed.",
+      "gold_sources": ["operations/sla.md"]
+    },
+    {
+      "id": "pub-10",
+      "category": "hard",
+      "question": "Which teams are NOT allowed to approve production deployments?",
+      "gold_answer": "Any team other than Platform (e.g. Ingest, Query, Alerting, Billing) cannot approve production deployments, except for the temporary emergency exception an Incident Commander can grant during a P1 incident.",
+      "gold_sources": ["security/access-control.md", "engineering/deployments.md", "security/incident-response.md"]
+    }
+  ]
+}
