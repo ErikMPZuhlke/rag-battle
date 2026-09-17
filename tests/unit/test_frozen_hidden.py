@@ -2,12 +2,16 @@
 evaluator actually sources hidden runs from the frozen module (not JSON) and
 redacts question text from anything written to disk.
 
-Run from scripts/: `pytest evaluation/tests/test_frozen_hidden.py -q`
+Run from the repo root: `pytest tests/unit/test_frozen_hidden.py -q`
 """
 import hashlib
 import json
 import pathlib
+import sys
 from pathlib import Path
+
+# The `evaluation` package lives in the rag-eval-report skill, not under `app`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".github" / "skills" / "rag-eval-report" / "scripts"))
 
 import pytest
 
@@ -17,8 +21,8 @@ from evaluation.leaderboard import write_results
 
 def test_no_plaintext_hidden_questions_committed():
     """The plaintext hidden question set must never live outside the gitignored private/ dir."""
-    tracked_root = Path(__file__).resolve().parents[1]
-    leaked = [p for p in tracked_root.rglob("hidden_questions.json") if "private" not in p.parts]
+    evaluation_root = Path(hidden.__file__).resolve().parent
+    leaked = [p for p in evaluation_root.rglob("hidden_questions.json") if "private" not in p.parts]
     assert leaked == [], f"Plaintext hidden questions found outside private/: {leaked}"
 
 

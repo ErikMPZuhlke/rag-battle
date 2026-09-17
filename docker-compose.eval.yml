@@ -8,8 +8,10 @@
 #
 #   docker compose -f docker-compose.eval.yml up --build -d
 #
-# Update .github/skills/rag-eval-report/scripts/evaluation/teams.json with each team's
-# mapped host port before running the rag-eval-report skill's evaluator.
+# Each team submits its own hidden-run results to the leaderboard (see
+# .github/skills/rag-eval-report), so no organizer-side fan-out/registry is
+# needed here — this file only needs to get each team's app running and
+# reachable so the team can point its own evaluator at it.
 
 services:
   team-baseline:

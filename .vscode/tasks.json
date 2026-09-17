@@ -64,6 +64,20 @@
       "problemMatcher": []
     },
     {
+      "label": "Evaluate app (local)",
+      "type": "shell",
+      "command": "python -m evaluation.evaluator --questions evaluation/public_questions.json",
+      "options": { "cwd": "${workspaceFolder}/.github/skills/rag-eval-report/scripts" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Evaluate & submit (hidden)",
+      "type": "shell",
+      "command": "python -m evaluation.evaluator",
+      "options": { "cwd": "${workspaceFolder}/.github/skills/rag-eval-report/scripts" },
+      "problemMatcher": []
+    },
+    {
       "label": "Run unit tests",
       "type": "shell",
       "command": "pytest tests/unit -q",

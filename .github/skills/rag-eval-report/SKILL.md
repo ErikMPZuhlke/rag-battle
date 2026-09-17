@@ -1,29 +1,33 @@
 ---
 name: rag-eval-report
-description: 'Kick off the RAG Battle Royale evaluation chain (score every team''s /ask endpoint against the public or hidden question set) and produce a self-contained, emailable HTML leaderboard report. Use when asked to run the evaluation, score teams, generate the leaderboard, or produce an evaluation/results report.'
-argument-hint: '[--questions public|hidden] [--teams path]'
+description: 'Score your RAG app''s /ask endpoint against the public or hidden question set, render a self-contained HTML report, and (for hidden runs) submit your scores to the RAG Battle Royale leaderboard. Use when asked to run the evaluation, score your app, generate a report, or submit results to the leaderboard.'
+argument-hint: '[--questions public|hidden] [--base-url URL] [--no-submit] [--dry-run]'
 ---
 
-# RAG Battle Royale — Evaluation & Report
+# RAG Battle Royale — Evaluate, Report & Submit
 
-Runs the organizer-only evaluation chain against each team's `/ask` endpoint and
-renders the results as a leaderboard, CSV, and a self-contained HTML report
-suitable for emailing (inline styles, inline SVG bars, no JS/CSS/CDN).
+Scores your team's `/ask` endpoint against a question set and renders the
+results as a self-contained HTML report (inline styles, inline SVG bars, no
+JS/CSS/CDN — safe to email or paste). Hidden-set runs also submit your scores
+to the leaderboard's public `/submit` channel.
 
 ## Prerequisites
 
-- Each team's API is running and reachable (see `docker-compose.eval.yml` for
-  the organizer multi-team setup, or run a single team locally via the
-  **Run API** task).
-- `.env` has `GROQ_API_KEY` set (used by the LLM judge in
-  [scripts/evaluation/judge.py](./scripts/evaluation/judge.py)).
-- [scripts/evaluation/teams.json](./scripts/evaluation/teams.json) lists every team name and
-  its reachable `base_url`.
-- The hidden question set is never checked into the repo as plaintext. It's
-  compiled into a frozen, importable native module at
-  [assets/](./assets/) (`_hidden_frozen*.so`) — see
-  [scripts/evaluation/tools/build_hidden.py](./scripts/evaluation/tools/build_hidden.py)
-  and [scripts/evaluation/hidden.py](./scripts/evaluation/hidden.py).
+- Your app is running and reachable (see the **Run API** task, default
+  `http://localhost:8000`).
+- `.env` has:
+  - `GROQ_API_KEY` — used by the LLM judge in
+    [scripts/evaluation/judge.py](./scripts/evaluation/judge.py).
+  - `TEAM_NAME` — your team's identity on the leaderboard.
+  - `LEADERBOARD_SUBMIT_URL` / `LEADERBOARD_SUBMIT_TOKEN` — given to you by the
+    organizers at the start of the event (only needed for hidden/submitted
+    runs; see [leaderboard/participant/README.md](../../../../leaderboard/participant/README.md)
+    in the sibling `leaderboard` project for the full submission contract).
+- The hidden question set is never checked into this repo as plaintext. It's
+  compiled into a frozen, importable native module under
+  [assets/](./assets/) (`_hidden_frozen*.so`), shipped to you so you can score
+  against it without ever seeing the questions — see
+  [scripts/evaluation/hidden.py](./scripts/evaluation/hidden.py).
 
 ## Procedure
 
@@ -31,35 +35,57 @@ suitable for emailing (inline styles, inline SVG bars, no JS/CSS/CDN).
    ```bash
    cd .github/skills/rag-eval-report/scripts
    ```
-2. Run the evaluator against the hidden (organizer, default) or public (self-test) set:
+2. Run the evaluator against the hidden (default, submitted) or public
+   (self-test, never submitted) set:
    ```bash
-   # organizer-only, default -- loads the frozen module, never a JSON file:
-   python -m evaluation.evaluator --questions hidden
-   # self-test:
+   # scores against the hidden set, writes a report, and submits to the leaderboard:
+   python -m evaluation.evaluator
+   # self-test against the public set -- local report only, never submitted:
    python -m evaluation.evaluator --questions evaluation/public_questions.json
    ```
 3. This writes a timestamped run under `evaluation/results/<run_id>/`:
-   - `results.json` — `{"meta": {"run_id", "question_set": {"name","sha256","count"}}, "teams": {...}}`.
+   - `results.json` — `{"meta": {"run_id", "question_set": {"name","sha256","count"}, "issued_at"}, "teams": {...}}`.
+     This is exactly the body submitted to the leaderboard for hidden runs.
      For hidden runs, `question` and `gold_answer` are redacted per-question
      (scoring already happened before redaction, so scores are unaffected);
      `question_set` is a tamper-evident fingerprint (sha256 + count), not the
-     question text, so you can verify which set produced a given leaderboard
+     question text, so you can verify which set produced a given report
      without ever exposing it.
-   - `leaderboard.csv` — summary table
-   - `leaderboard_by_category.csv` — per-team scores broken down by question category
-   - `report.html` — self-contained HTML leaderboard report, ready to email; the
-     footer shows the same `question_set` fingerprint as `results.json`.
+   - `report.html` — self-contained HTML report, ready to email; the footer
+     shows the same `question_set` fingerprint as `results.json`.
 4. To regenerate the HTML report from an existing run (no re-evaluation)
    see [scripts/evaluation/report.py](./scripts/evaluation/report.py):
    ```bash
    python -m evaluation.report --results evaluation/results/<run_id>/results.json
    ```
 
-## Verifying the hidden set that produced a leaderboard
+## Submitting to the leaderboard
+
+Every hidden run auto-submits at the end, unless you pass a safety flag:
+
+```bash
+python -m evaluation.evaluator --no-submit   # score + report, skip submission
+python -m evaluation.evaluator --dry-run     # print the exact request body, send nothing
+```
+
+To (re-)submit an existing run without re-evaluating, see
+[scripts/evaluation/submit.py](./scripts/evaluation/submit.py):
+```bash
+python -m evaluation.submit --results evaluation/results/<run_id>/results.json
+```
+
+Submission posts `results.json` byte-for-byte to `$LEADERBOARD_SUBMIT_URL/submit`
+with the `X-Submit-Token` header. It retries on `429`/`503` (honoring
+`Retry-After`) and raises on any other non-`202` response. Resubmitting the
+same run is harmless — the leaderboard dedupes on `(run_id, question_set.sha256)`.
+Only your own team's scores are affected; submitting never touches other
+teams' standings.
+
+## Verifying the hidden set that produced a report
 
 Every `results.json` and `report.html` carries `question_set` (name, sha256,
-count). To confirm a given leaderboard was produced by the current frozen
-hidden set:
+count). To confirm a given report was produced by the current frozen hidden
+set:
 ```bash
 cd .github/skills/rag-eval-report/scripts
 python -c "from evaluation.hidden import hidden_fingerprint; print(hidden_fingerprint())"
@@ -68,17 +94,16 @@ and compare against the `question_set` recorded in that run's `results.json`
 `meta`. `evaluation/hidden.py` also re-verifies the frozen module's embedded
 sha256 on every load, so a tampered or stale `.so` fails loudly instead of
 silently scoring against the wrong questions. See
-[scripts/evaluation/tests/test_frozen_hidden.py](./scripts/evaluation/tests/test_frozen_hidden.py)
+[tests/unit/test_frozen_hidden.py](../../../tests/unit/test_frozen_hidden.py)
 for the automated checks (tamper rejection, no-plaintext-in-repo, and that
-`--questions hidden` never falls back to reading a JSON file).
-
+the hidden set never falls back to reading a JSON file).
 
 ## Report contents
 
 The HTML report ([scripts/evaluation/report.py](./scripts/evaluation/report.py)) includes:
-- Ranked leaderboard with medals and a score bar per team
-- Per-team metric breakdown (correctness, retrieval, groundedness, citations, latency), plus a per-category table for each team
-- Lowest-scoring answers across all teams (gold vs. candidate) for the post-battle discussion
+- Overall score and a score bar
+- Metric breakdown (correctness, retrieval, groundedness, citations, latency), plus a per-category table
+- Lowest-scoring answers for the post-run failure-analysis discussion
 
 ## Scoring semantics (scripts/evaluation/scoring.py)
 
@@ -97,18 +122,17 @@ All 5 rule-mandated metrics are computed and weighted exactly as in
   section. `public_questions.json` uses the object form; `hidden_questions.json`
   may use either.
 
-## Local dev loop (participants)
+## Measuring the impact of a change
 
-Teams can score their own running app against the public set without the
-full organizer chain, using the same scoring code and LLM judge:
+Use `--save`/`--compare` to see per-metric, per-category deltas after a change
+to `app/` (typically against the public set, which has no submission cost):
 ```bash
-cd .github/skills/rag-eval-report/scripts
-python -m evaluation.dev_eval --base-url http://localhost:8000
+python -m evaluation.evaluator --questions evaluation/public_questions.json --save evaluation/results/dev/baseline.json
+# ...make a change to app/...
+python -m evaluation.evaluator --questions evaluation/public_questions.json --compare evaluation/results/dev/baseline.json
 ```
-Or via the **Evaluate app (local)** VS Code task. Use `--save <path>` to
-snapshot a run and `--compare <path>` on a later run to see per-metric,
-per-category deltas after a change to `app/`. This only accepts the public
-question set — the hidden set stays organizer-only per the participant rules.
+Or via the **Evaluate app (local)** VS Code task.
 
 It has no external dependencies (fonts, scripts, stylesheets) so it renders
 correctly when attached to or pasted into an email.
+
