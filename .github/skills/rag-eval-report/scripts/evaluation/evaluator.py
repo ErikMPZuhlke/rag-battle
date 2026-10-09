@@ -15,18 +15,25 @@ Usage:
     python -m evaluation.evaluator --dry-run               # print the submission body, send nothing
     python -m evaluation.evaluator --save snap.json
     python -m evaluation.evaluator --compare snap.json      # diff against a prior snapshot
+    python -m evaluation.evaluator --resume <run_id>        # continue an interrupted run
+
+Groq's per-minute token limit is shared by the app and the judge; see the
+"Rate limits & resuming" section of the skill's SKILL.md.
 """
 import argparse
 import hashlib
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 import httpx
 
 from evaluation.hidden import hidden_fingerprint, load_hidden_questions
+from evaluation.judge import set_cache_enabled
 from evaluation.leaderboard import write_results
 from evaluation.report import write_html_report
 from evaluation.scoring import score_question
@@ -35,6 +42,10 @@ from evaluation.submit import SubmissionError, submit_results
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 HIDDEN_SENTINEL = "hidden"
 _METRICS = ["correctness", "retrieval", "groundedness", "citations", "latency", "weighted_total"]
+_REDACTED = "<redacted: hidden question set>"
+_RETRYABLE_STATUS = {502, 503, 504}
+_MAX_ASK_WAIT_SECONDS = 60.0
+_RUN_ID_RE = re.compile(r"[\w-]+")
 
 
 def resolve_questions(questions_arg: str) -> tuple[list, dict, bool]:
@@ -55,34 +66,89 @@ def resolve_questions(questions_arg: str) -> tuple[list, dict, bool]:
 def redact_results(results: dict) -> dict:
     """Strips hidden question text/gold answers from a results dict before it's
     written to disk, rendered, or submitted -- scoring already happened, so this is safe."""
-    redacted = {}
-    for team, data in results.items():
-        per_question = [
-            {**q, "question": "<redacted: hidden question set>", "gold_answer": "<redacted: hidden question set>"}
-            for q in data["per_question"]
-        ]
-        redacted[team] = {**data, "per_question": per_question}
-    return redacted
+    return {
+        team: {**data, "per_question": [_redact_record(q) for q in data["per_question"]]}
+        for team, data in results.items()
+    }
 
 
-def call_team(base_url: str, question: str, timeout: float = 15.0) -> dict:
-    start = time.perf_counter()
+def _redact_record(record: dict) -> dict:
+    return {**record, "question": _REDACTED, "gold_answer": _REDACTED}
+
+
+def _retry_wait_seconds(response: httpx.Response, attempt: int) -> float:
     try:
-        response = httpx.post(f"{base_url}/ask", json={"question": question}, timeout=timeout)
-        latency = time.perf_counter() - start
-        response.raise_for_status()
-        body = response.json()
-        sources = [{"document": s["document"], "section": s.get("section")} for s in body.get("sources", [])]
-        return {"answer": body.get("answer", ""), "sources": sources, "latency": latency, "error": None}
-    except Exception as exc:  # noqa: BLE001 - a broken app must not crash the eval run
-        latency = time.perf_counter() - start
-        return {"answer": "", "sources": [], "latency": latency, "error": str(exc)}
+        wait = float(response.headers.get("retry-after", ""))
+    except ValueError:
+        wait = 5.0 * attempt
+    return min(wait + 0.5, _MAX_ASK_WAIT_SECONDS)
 
 
-def run_evaluation(questions: list, team_name: str, base_url: str) -> dict:
+def _is_retryable(response: httpx.Response) -> bool:
+    # A bare 429 is the app's deterministic budget-exceeded error; only a 429 with
+    # Retry-After means a transient upstream rate limit worth waiting out.
+    return response.status_code in _RETRYABLE_STATUS or (
+        response.status_code == 429 and "retry-after" in response.headers
+    )
+
+
+def call_team(base_url: str, question: str, timeout: float = 30.0, max_retries: int = 4) -> dict:
+    """Calls /ask, retrying transient 429/502/503/504 responses; latency covers the successful attempt only."""
+    attempts = 0
+    while True:
+        attempts += 1
+        start = time.perf_counter()
+        try:
+            response = httpx.post(f"{base_url}/ask", json={"question": question}, timeout=timeout)
+            latency = time.perf_counter() - start
+            if _is_retryable(response) and attempts <= max_retries:
+                time.sleep(_retry_wait_seconds(response, attempts))
+                continue
+            response.raise_for_status()
+            body = response.json()
+            sources = [{"document": s["document"], "section": s.get("section")} for s in body.get("sources", [])]
+            return {
+                "answer": body.get("answer", ""),
+                "sources": sources,
+                "latency": latency,
+                "error": None,
+                "attempts": attempts,
+            }
+        except Exception as exc:  # noqa: BLE001 - a broken app must not crash the eval run
+            latency = time.perf_counter() - start
+            return {"answer": "", "sources": [], "latency": latency, "error": str(exc), "attempts": attempts}
+
+
+def load_checkpoint(path: Path) -> dict[str, dict]:
+    """Finished per-question records keyed by id; errored records are dropped so a resume retries them."""
+    records: dict[str, dict] = {}
+    if not path.exists():
+        return records
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            record = json.loads(line)
+            records[record["id"]] = record
+    return {qid: r for qid, r in records.items() if r.get("error") is None}
+
+
+def run_evaluation(
+    questions: list,
+    team_name: str,
+    base_url: str,
+    *,
+    ask_timeout: float = 30.0,
+    ask_retries: int = 4,
+    pace: float = 0.0,
+    done: dict[str, dict] | None = None,
+    on_result: Callable[[dict], None] | None = None,
+) -> dict:
+    done = done or {}
     per_question = []
     for q in questions:
-        call = call_team(base_url, q["question"])
+        if q["id"] in done:
+            per_question.append(done[q["id"]])
+            continue
+        call = call_team(base_url, q["question"], timeout=ask_timeout, max_retries=ask_retries)
         if call["error"] is not None:
             scores = {m: 0.0 for m in _METRICS}
         else:
@@ -94,19 +160,22 @@ def run_evaluation(questions: list, team_name: str, base_url: str) -> dict:
                 returned_sources=call["sources"],
                 latency_seconds=call["latency"],
             )
-        per_question.append(
-            {
-                "id": q["id"],
-                "category": q.get("category"),
-                "question": q["question"],
-                "gold_answer": q["gold_answer"],
-                "candidate_answer": call["answer"],
-                "returned_documents": [s["document"] for s in call["sources"]],
-                "latency_seconds": call["latency"],
-                "error": call["error"],
-                "scores": scores,
-            }
-        )
+        record = {
+            "id": q["id"],
+            "category": q.get("category"),
+            "question": q["question"],
+            "gold_answer": q["gold_answer"],
+            "candidate_answer": call["answer"],
+            "returned_documents": [s["document"] for s in call["sources"]],
+            "latency_seconds": call["latency"],
+            "error": call["error"],
+            "scores": scores,
+        }
+        per_question.append(record)
+        if on_result is not None:
+            on_result(record)
+        if pace > 0:
+            time.sleep(pace)
 
     average = {m: sum(r["scores"][m] for r in per_question) / len(per_question) for m in _METRICS}
     by_category: dict[str, list[dict]] = {}
@@ -169,6 +238,11 @@ def main():
     parser.add_argument("--compare", default=None, help="Path to a previous snapshot (from --save) to diff against")
     parser.add_argument("--no-submit", action="store_true", help="Score and report but never submit, even for a hidden run")
     parser.add_argument("--dry-run", action="store_true", help="Print the submission body instead of sending it")
+    parser.add_argument("--resume", default=None, metavar="RUN_ID", help="Continue an interrupted run, skipping finished questions")
+    parser.add_argument("--ask-retries", type=int, default=4, help="Retries per /ask call on transient 429/502/503/504")
+    parser.add_argument("--ask-timeout", type=float, default=30.0, help="Seconds to wait for each /ask response")
+    parser.add_argument("--pace", type=float, default=0.0, help="Seconds to pause between questions")
+    parser.add_argument("--no-judge-cache", action="store_true", help="Ignore and don't write the on-disk judge score cache")
     args = parser.parse_args()
 
     if not args.team:
@@ -177,11 +251,58 @@ def main():
         raise SystemExit("GROQ_API_KEY is not set -- required by the LLM judge (see .env.example).")
 
     questions, question_set, is_hidden = resolve_questions(args.questions)
-    results = run_evaluation(questions, args.team, args.base_url)
+    if args.no_judge_cache:
+        set_cache_enabled(False)
+
+    if args.resume:
+        run_id = args.resume
+        if not _RUN_ID_RE.fullmatch(run_id):
+            raise SystemExit(f"Invalid run id: {run_id!r}")
+        out_dir = RESULTS_DIR / run_id
+        state_path = out_dir / "run_state.json"
+        if not state_path.exists():
+            raise SystemExit(f"Nothing to resume: {state_path} not found.")
+        saved_sha = json.loads(state_path.read_text(encoding="utf-8"))["question_set"]["sha256"]
+        if saved_sha != question_set["sha256"]:
+            raise SystemExit("Refusing to resume: the question set differs from the one this run started with.")
+    else:
+        run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        out_dir = RESULTS_DIR / run_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "run_state.json").write_text(
+            json.dumps({"run_id": run_id, "question_set": question_set}), encoding="utf-8"
+        )
+
+    checkpoint_path = out_dir / "checkpoint.jsonl"
+    done = load_checkpoint(checkpoint_path)
+    if done:
+        print(f"Resuming {run_id}: {len(done)}/{len(questions)} questions already scored.")
+
+    def _checkpoint(record: dict) -> None:
+        # Hidden-set question/gold text never touches disk, not even in the checkpoint.
+        saved = _redact_record(record) if is_hidden else record
+        with checkpoint_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(saved) + "\n")
+
+    resume_cmd = f"python -m evaluation.evaluator --questions {args.questions} --resume {run_id}"
+    try:
+        results = run_evaluation(
+            questions,
+            args.team,
+            args.base_url,
+            ask_timeout=args.ask_timeout,
+            ask_retries=args.ask_retries,
+            pace=args.pace,
+            done=done,
+            on_result=_checkpoint,
+        )
+    except KeyboardInterrupt:
+        raise SystemExit(f"\nInterrupted. Finished questions are saved; continue with:\n  {resume_cmd}") from None
+    except Exception:
+        print(f"\nRun failed. Finished questions are saved; continue with:\n  {resume_cmd}")
+        raise
     output_results = redact_results(results) if is_hidden else results
 
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    out_dir = RESULTS_DIR / run_id
     meta = {
         "run_id": run_id,
         "question_set": question_set,

@@ -1,9 +1,11 @@
 """The POST /ask endpoint: retrieve -> generate -> deduplicate sources."""
+import math
+
 from fastapi import APIRouter, HTTPException
 
 from app.core.budget import Budget, BudgetExceededError
 from app.schemas.ask import AskRequest, AskResponse, Source
-from app.services.generation import generate_answer
+from app.services.generation import LLMRateLimitedError, generate_answer
 from app.services.retrieval import retrieve
 
 router = APIRouter(tags=["ask"])
@@ -17,6 +19,12 @@ def ask(request: AskRequest):
         answer = generate_answer(request.question, chunks, budget)
     except BudgetExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except LLMRateLimitedError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+            headers={"Retry-After": str(max(1, math.ceil(exc.retry_after)))},
+        ) from exc
 
     seen_documents = set()
     sources = []

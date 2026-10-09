@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
     groq_model: str = "openai/gpt-oss-20b"
+    # Bounded in-request retries on Groq 429s before /ask answers 503 + Retry-After.
+    groq_max_retries: int = 3
+    groq_max_retry_wait_s: float = 8.0
 
     chroma_persist_dir: str = ".chroma"
     chroma_collection: str = "acme_kb"

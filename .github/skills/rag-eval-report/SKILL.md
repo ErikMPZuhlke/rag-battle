@@ -122,6 +122,35 @@ All 5 rule-mandated metrics are computed and weighted exactly as in
   section. `public_questions.json` uses the object form; `hidden_questions.json`
   may use either.
 
+## Rate limits & resuming
+
+Groq limits `openai/gpt-oss-20b` per minute (roughly 8K tokens / 30 requests on
+the free tier), and the app's `/ask` and the judge share that budget. One
+question costs several thousand tokens, so a full run takes on the order of a
+minute per question. The harness is built to wait rather than fail:
+
+- **Judge throttling** ([judge.py](./scripts/evaluation/judge.py)): reads Groq's
+  `x-ratelimit-remaining-tokens` / `-reset-tokens` headers and waits before the
+  limit is hit; on a 429 it honors `retry-after`.
+- **Judge cache**: scores are cached in `evaluation/results/.judge_cache.json`
+  (hashes and scores only, no question text), so re-running with unchanged
+  answers costs no judge tokens. Disable with `--no-judge-cache`.
+- **`/ask` retries**: the evaluator retries 502/503/504 and any 429 carrying
+  `Retry-After` (`--ask-retries`, `--ask-timeout`). The app waits out short Groq
+  429s itself and otherwise answers `503` + `Retry-After`.
+- **Checkpoint / resume**: each finished question is appended to
+  `results/<run_id>/checkpoint.jsonl` (hidden runs store it redacted). If a run
+  is interrupted or fails, it prints the command to continue:
+  ```bash
+  python -m evaluation.evaluator --resume <run_id>              # hidden
+  python -m evaluation.evaluator --questions evaluation/public_questions.json --resume <run_id>
+  ```
+  Resume refuses if the question-set fingerprint changed.
+- `--pace SECONDS` adds a fixed pause between questions if you still see 429s.
+
+The daily token quota is not worked around: use the public set for iteration
+and the cache/resume to avoid repeating spent work.
+
 ## Measuring the impact of a change
 
 Use `--save`/`--compare` to see per-metric, per-category deltas after a change

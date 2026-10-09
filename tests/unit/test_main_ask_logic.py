@@ -2,6 +2,7 @@
 retrieval and generation mocked out -- no LLM/corpus dependency."""
 import app.api.routes.ask as ask_route
 from app.core.budget import BudgetExceededError
+from app.services.generation import LLMRateLimitedError
 
 
 def test_ask_deduplicates_sources_by_document_keeping_first_section(client, monkeypatch):
@@ -31,3 +32,16 @@ def test_ask_returns_429_when_budget_exceeded(client, monkeypatch):
     response = client.post("/ask", json={"question": "anything"})
 
     assert response.status_code == 429
+
+
+def test_ask_returns_503_with_retry_after_when_llm_rate_limited(client, monkeypatch):
+    def _limited(question, chunks, budget):
+        raise LLMRateLimitedError(12.4)
+
+    monkeypatch.setattr(ask_route, "retrieve", lambda question, budget: [])
+    monkeypatch.setattr(ask_route, "generate_answer", _limited)
+
+    response = client.post("/ask", json={"question": "anything"})
+
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "13"
