@@ -16,6 +16,9 @@ import time
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 _MAX_ATTEMPTS = 3
 _DEFAULT_RETRY_AFTER = 5.0

@@ -19,10 +19,16 @@ def _raw(score: str, remaining="8000", reset="1s"):
     return SimpleNamespace(headers=headers, parse=lambda: parsed)
 
 
-def _rate_limit_error(retry_after: str | None):
+def _rate_limit_error(retry_after: str | None, message: str = "rate limited"):
     headers = {"retry-after": retry_after} if retry_after else {}
     response = httpx.Response(429, headers=headers, request=httpx.Request("POST", "http://x"))
-    return RateLimitError("rate limited", response=response, body=None)
+    return RateLimitError(message, response=response, body=None)
+
+
+_TPD_MESSAGE = (
+    "Error code: 429 - Rate limit reached for model `openai/gpt-oss-20b` on tokens per day (TPD): "
+    "Limit 200000, Used 198333, Requested 1970. Please try again in 2m10.896s."
+)
 
 
 class _FakeClient:
@@ -77,10 +83,32 @@ def test_gives_up_after_max_retries(monkeypatch):
     client = _FakeClient([_rate_limit_error("1")] * 3)
     _use_client(monkeypatch, client)
 
-    with pytest.raises(RateLimitError):
+    with pytest.raises(judge.RateLimitStop):
         judge._judge_score("sys", "user")
 
     assert client.calls == 3
+
+
+def test_daily_quota_stops_immediately_without_waiting(monkeypatch, _isolated):
+    client = _FakeClient([_rate_limit_error(None, _TPD_MESSAGE), _raw("1")])
+    _use_client(monkeypatch, client)
+
+    with pytest.raises(judge.RateLimitStop) as info:
+        judge._judge_score("sys", "user")
+
+    assert client.calls == 1
+    assert _isolated == []
+    assert "daily" in info.value.reason
+    assert info.value.retry_after == pytest.approx(130.896)
+
+
+def test_message_hint_with_minutes_is_parsed_fully(monkeypatch, _isolated):
+    monkeypatch.setattr(judge, "_MAX_WAIT_SECONDS", 300.0)
+    client = _FakeClient([_rate_limit_error(None, "Please try again in 1m2.5s."), _raw("1")])
+    _use_client(monkeypatch, client)
+
+    assert judge._judge_score("sys", "user") == 1.0
+    assert _isolated == [pytest.approx(63.0)]
 
 
 def test_waits_for_token_refill_when_headers_show_low_budget(monkeypatch, _isolated):

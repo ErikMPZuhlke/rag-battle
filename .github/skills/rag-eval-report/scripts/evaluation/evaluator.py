@@ -16,16 +16,20 @@ Usage:
     python -m evaluation.evaluator --save snap.json
     python -m evaluation.evaluator --compare snap.json      # diff against a prior snapshot
     python -m evaluation.evaluator --resume <run_id>        # continue an interrupted run
+    python -m evaluation.evaluator --debug                  # show full tracebacks on failure
 
 Groq's per-minute token limit is shared by the app and the judge; see the
-"Rate limits & resuming" section of the skill's SKILL.md.
+"Rate limits & resuming" section of the skill's SKILL.md. Exit codes: 0 ok,
+75 stopped on a rate limit (resume later), 1 any other failure.
 """
 import argparse
 import hashlib
 import json
 import os
 import re
+import sys
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -33,7 +37,7 @@ from typing import Callable
 import httpx
 
 from evaluation.hidden import hidden_fingerprint, load_hidden_questions
-from evaluation.judge import set_cache_enabled
+from evaluation.judge import RateLimitStop, set_cache_enabled
 from evaluation.leaderboard import write_results
 from evaluation.report import write_html_report
 from evaluation.scoring import score_question
@@ -46,6 +50,22 @@ _REDACTED = "<redacted: hidden question set>"
 _RETRYABLE_STATUS = {502, 503, 504}
 _MAX_ASK_WAIT_SECONDS = 60.0
 _RUN_ID_RE = re.compile(r"[\w-]+")
+EXIT_RATE_LIMITED = 75  # EX_TEMPFAIL: try again later
+
+
+def _fmt_duration(seconds: float) -> str:
+    seconds = int(round(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    return f"{minutes}m{secs:02d}s" if minutes else f"{secs}s"
+
+
+def _one_line(text: str, limit: int = 300) -> str:
+    lines = (text or "").strip().splitlines()
+    first = lines[0] if lines else ""
+    return first if len(first) <= limit else first[: limit - 1] + "\u2026"
 
 
 def resolve_questions(questions_arg: str) -> tuple[list, dict, bool]:
@@ -93,7 +113,11 @@ def _is_retryable(response: httpx.Response) -> bool:
 
 
 def call_team(base_url: str, question: str, timeout: float = 30.0, max_retries: int = 4) -> dict:
-    """Calls /ask, retrying transient 429/502/503/504 responses; latency covers the successful attempt only."""
+    """Calls /ask, retrying transient 429/502/503/504 responses; latency covers the successful attempt only.
+
+    Raises RateLimitStop if /ask is still transiently failing after `max_retries`, so the run
+    stops (and can be resumed) instead of recording a zero score.
+    """
     attempts = 0
     while True:
         attempts += 1
@@ -101,8 +125,31 @@ def call_team(base_url: str, question: str, timeout: float = 30.0, max_retries: 
         try:
             response = httpx.post(f"{base_url}/ask", json={"question": question}, timeout=timeout)
             latency = time.perf_counter() - start
-            if _is_retryable(response) and attempts <= max_retries:
-                time.sleep(_retry_wait_seconds(response, attempts))
+            if _is_retryable(response):
+                try:
+                    hint = float(response.headers.get("retry-after", ""))
+                except ValueError:
+                    hint = None
+                if hint is not None and hint > _MAX_ASK_WAIT_SECONDS:
+                    raise RateLimitStop(
+                        f"/ask returned {response.status_code} asking to wait longer than "
+                        f"{_MAX_ASK_WAIT_SECONDS:.0f}s (the app is likely out of Groq quota)",
+                        hint,
+                    )
+                if attempts > max_retries:
+                    raise RateLimitStop(
+                        f"/ask still returned {response.status_code} after {max_retries} retries "
+                        "(the app is likely rate-limited by Groq)",
+                        hint,
+                    )
+                wait = _retry_wait_seconds(response, attempts)
+                print(
+                    f"  \u23F3 /ask returned {response.status_code}, retrying in {wait:.0f}s "
+                    f"(attempt {attempts}/{max_retries})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(wait)
                 continue
             response.raise_for_status()
             body = response.json()
@@ -114,6 +161,8 @@ def call_team(base_url: str, question: str, timeout: float = 30.0, max_retries: 
                 "error": None,
                 "attempts": attempts,
             }
+        except RateLimitStop:
+            raise
         except Exception as exc:  # noqa: BLE001 - a broken app must not crash the eval run
             latency = time.perf_counter() - start
             return {"answer": "", "sources": [], "latency": latency, "error": str(exc), "attempts": attempts}
@@ -144,7 +193,8 @@ def run_evaluation(
 ) -> dict:
     done = done or {}
     per_question = []
-    for q in questions:
+    total = len(questions)
+    for index, q in enumerate(questions, start=1):
         if q["id"] in done:
             per_question.append(done[q["id"]])
             continue
@@ -174,6 +224,9 @@ def run_evaluation(
         per_question.append(record)
         if on_result is not None:
             on_result(record)
+        # Id only, never question text: progress lines must stay safe for hidden runs.
+        outcome = f"ERROR: {_one_line(call['error'], 120)}" if call["error"] else f"{scores['weighted_total']:.2f}"
+        print(f"[{index}/{total}] {q['id']} -> {outcome} ({call['latency']:.1f}s)", flush=True)
         if pace > 0:
             time.sleep(pace)
 
@@ -243,6 +296,7 @@ def main():
     parser.add_argument("--ask-timeout", type=float, default=30.0, help="Seconds to wait for each /ask response")
     parser.add_argument("--pace", type=float, default=0.0, help="Seconds to pause between questions")
     parser.add_argument("--no-judge-cache", action="store_true", help="Ignore and don't write the on-disk judge score cache")
+    parser.add_argument("--debug", action="store_true", help="Print full tracebacks on unexpected failures")
     args = parser.parse_args()
 
     if not args.team:
@@ -298,9 +352,25 @@ def main():
         )
     except KeyboardInterrupt:
         raise SystemExit(f"\nInterrupted. Finished questions are saved; continue with:\n  {resume_cmd}") from None
-    except Exception:
-        print(f"\nRun failed. Finished questions are saved; continue with:\n  {resume_cmd}")
-        raise
+    except RateLimitStop as exc:
+        when = f" Try again in ~{_fmt_duration(exc.retry_after)}." if exc.retry_after else ""
+        saved = len(load_checkpoint(checkpoint_path))
+        print(
+            f"\n\u23F8\uFE0F  Stopped: {exc.reason}.{when}\n"
+            f"   {saved}/{len(questions)} questions saved; continue with:\n  {resume_cmd}",
+            file=sys.stderr,
+        )
+        raise SystemExit(EXIT_RATE_LIMITED) from None
+    except Exception as exc:  # noqa: BLE001 - report cleanly; --debug shows the traceback
+        if args.debug:
+            traceback.print_exc()
+        print(
+            f"\n\u274C Run failed: {type(exc).__name__}: {_one_line(str(exc))}\n"
+            f"   Finished questions are saved; continue with:\n  {resume_cmd}"
+            + ("" if args.debug else "\n   (rerun with --debug for the full traceback)"),
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
     output_results = redact_results(results) if is_hidden else results
 
     meta = {
@@ -321,10 +391,23 @@ def main():
         save_path.write_text(json.dumps(output_results[args.team], indent=2), encoding="utf-8")
         print(f"\U0001F4BE Saved snapshot to {save_path}")
 
+    errored_ids = [r["id"] for r in output_results[args.team]["per_question"] if r["error"]]
+    if errored_ids:
+        print(
+            f"\n\u26A0\uFE0F  {len(errored_ids)} question(s) errored and scored 0: {', '.join(errored_ids)}",
+            file=sys.stderr,
+        )
+
     if not is_hidden:
         print("\u2139\uFE0F  Public run \u2014 not submitted (only hidden runs count toward the leaderboard).")
     elif args.no_submit:
         print("\u23ED\uFE0F  Skipped submission (--no-submit).")
+    elif errored_ids and not args.dry_run:
+        print(
+            f"\u274C Not submitting a run with errored questions. Fix the app, then retry them with:\n  {resume_cmd}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     else:
         try:
             submit_results(out_dir / "results.json", dry_run=args.dry_run)

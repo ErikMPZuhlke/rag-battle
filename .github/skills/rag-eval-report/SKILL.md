@@ -147,6 +147,15 @@ minute per question. The harness is built to wait rather than fail:
   ```
   Resume refuses if the question-set fingerprint changed.
 - `--pace SECONDS` adds a fixed pause between questions if you still see 429s.
+- **Progress & exits**: each question prints `[i/N] <id> -> score (latency)`, and
+  every rate-limit wait is announced. A run stops cleanly (no traceback) with exit
+  code `75` when rate-limited past the retry window, or `1` on any other failure;
+  both print the resume command. Add `--debug` for the full traceback.
+- **Daily quota (TPD)**: the judge stops immediately instead of retrying, printing
+  Groq's wait hint. The free tier's 200K tokens/day refill gradually (~8.3K/hour).
+- **Errored questions**: if `/ask` keeps returning 502/503/504 the run stops rather
+  than recording a zero; other `/ask` errors score 0 and a hidden run containing
+  them is **not submitted** -- fix the app and `--resume` to retry just those.
 
 The daily token quota is not worked around: use the public set for iteration
 and the cache/resume to avoid repeating spent work.
